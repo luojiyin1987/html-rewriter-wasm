@@ -222,5 +222,5 @@ npm run build && npm test
 
 - Node.js: v24.15.0
 - Rust: 1.97.0-nightly
-- wasm-pack: 0.14.0
-- wasm-opt: version 116
+- wasm-pack: 0.15.0
+- wasm-opt: version 120

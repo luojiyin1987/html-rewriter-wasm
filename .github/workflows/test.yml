@@ -2,30 +2,32 @@ name: Test
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v1
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly
+        run: |
+          rustup toolchain install nightly
+          rustup default nightly
+      - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Use Node.js LTS
-        uses: actions/setup-node@v2
+      - uses: actions/setup-node@v4
         with:
           node-version: lts/*
       - name: Install wasm-pack
-        run: cargo install --git https://github.com/mrbbot/wasm-pack
+        run: cargo install wasm-pack
+      - name: Install wasm-opt
+        run: |
+          curl -sL "https://github.com/WebAssembly/binaryen/releases/download/version_120/binaryen-version_120-x86_64-linux.tar.gz" | tar xz
+          cp binaryen-version_120/bin/wasm-opt ~/.cargo/bin/wasm-opt
       - run: npm ci
       - run: npm run build
       - run: npm test

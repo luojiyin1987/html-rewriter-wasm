@@ -74,16 +74,31 @@
 
 ---
 
-## 第 2 层：构建管线
+## 第 2 层：构建管线 ✅ 已完成
 
 **目标**：理解从 Rust 源码到可用 JS 包的完整流程
 
-### 改造内容
+### 已完成的改造
 
-1. 改 `build.sh` 去掉 mrbbot fork 检查
-   - 你的 wasm-opt 116 远超所需的 version_92
+1. 现代化 CI
+   - `.github/workflows/test.yml`：actions/checkout@v4, rust-cache@v2, setup-node@v4
+   - 去掉 mrbbot wasm-pack fork，改用官方 wasm-pack
+   - 加入 wasm-opt 120 安装步骤
 
-2. 手动走构建流程，观察每一步产物
+2. 增强 build.sh
+   - `set -euo pipefail` 替代 `set -e`
+   - 步骤编号和耗时统计
+   - 构建完成后输出 WASM/JS 大小
+
+3. 修复 package.json
+   - repository/bugs/homepage 改为指向 fork
+
+### 学到的要点
+
+- `actions-rs/toolchain` 已废弃，直接用 `rustup` 更可靠
+- `set -euo pipefail` 比 `set -e` 更严格（-u 检查未定义变量，-o pipefail 捕获管道错误）
+- 构建产物：WASM 836KB + JS 48KB ≈ 885KB 总大小
+- `wasm-opt -Os --asyncify` 优化后 WASM 从 ~1.2MB 降到 836KB
    - `wasm-pack build --target nodejs` → 看 `pkg/` 目录
    - `patch` → 对比 glue code 变化
    - 复制到 `dist/` → 理解发布内容
@@ -211,9 +226,9 @@ npm run build && npm test
 ## 执行顺序
 
 ```
-第1层 (1-2h) → 第2层 (2-3h) → 第3层 (3-4h) → 第4层 (4-6h) → 第5层 (∞)
+第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) → 第4层 (4-6h) → 第5层 (∞)
   ↓                ↓                ↓                ↓
-会用             会构建           会扩展API        会改核心逻辑
+ 会用             会构建           会扩展API        会改核心逻辑
 ```
 
 建议从第 1+2 层开始，完全不需要 Rust 知识。

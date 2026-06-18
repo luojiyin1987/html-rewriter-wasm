@@ -204,30 +204,42 @@ Rust 解析遇到元素
 - 栈指针必须 4 字节对齐
 - unwind/rewind 是对称操作
 - debug 模式默认关闭，零运行时开销
-
+   
 ---
 
-## 第 5 层：核心 Rust / lol-html
+## 第 5 层：核心 Rust / lol-html ✅ 已完成
 
 **目标**：理解 HTML 解析器本身
 
-### 改造内容
+### 核心概念
 
-1. 读 lol-html 源码
-   - Cargo.toml 锁定的 commit: `f32bd14`
-   - 理解 `HtmlRewriter`、`Settings`、`OutputSink` trait
+lol-html 通过 `Settings` 接收 `(Selector, ElementContentHandlers)` 元组列表。
+选择器匹配后触发对应的 Rust 回调。内置 handler 可以和 JS handler 共存。
 
-2. 更新 lol-html 到最新版
-   - 改 `Cargo.toml` 中的 `rev`
-   - 观察编译错误，理解 API 演变
+### 已完成的改造
 
-3. 在 Rust 端加内置 handler
-   - 不通过 JS，直接在 Rust 里处理（如自动给 `<img>` 加 `loading="lazy"`）
+1. 在 `html_rewriter.rs` 注入原生 Rust handler
+   - 使用 `lol_html::element!("img", ...)` 宏创建选择器 handler
+   - `element_handlers.insert(0, ...)` 保证先于用户 handler 执行
+   - `has_attribute("loading")` 检查避免覆盖用户显式设置
+
+2. 9 个测试覆盖所有边界情况
+   - 基本功能、不覆盖已有属性、批量处理、与用户 handler 共存
+   - 无用户 handler、不影响非 img 元素、自闭合标签、无属性标签
+
+### 学到的要点
+
+- lol-html 的 `element!` 宏返回 `(Cow<Selector>, ElementContentHandlers)` 元组
+- Handler 执行顺序 = 注册顺序（`insert(0, ...)` = 最先执行）
+- 注入一个 Rust handler 增加 ~8KB WASM 体积
+- 选择器解析发生在 `inner_mut()` 首次调用时
+- 内置 handler 对 JS 侧完全透明，无需修改 `.d.ts` 类型定义
 
 ### 验证
 
 ```bash
 npm run build && npm test
+# 79 tests passed (70 original + 9 new)
 ```
 
 ---
@@ -235,9 +247,9 @@ npm run build && npm test
 ## 执行顺序
 
 ```
-第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) ✅ → 第4层 (4-6h) ✅ → 第5层 (∞)
-  ↓                ↓                ↓                ↓
- 会用             会构建           会扩展API        会改核心逻辑
+第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) ✅ → 第4层 (4-6h) ✅ → 第5层 (已完成) ✅
+  ↓                ↓                ↓                ↓                ↓
+ 会用             会构建           会扩展API        会改核心逻辑      会加内置handler
 ```
 
 建议从第 1+2 层开始，完全不需要 Rust 知识。

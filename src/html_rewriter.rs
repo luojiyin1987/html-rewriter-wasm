@@ -87,14 +87,29 @@ impl HTMLRewriter {
             None => {
                 let output_sink = self.output_sink.take().unwrap();
 
-                let settings = Settings {
-                    element_content_handlers: self
-                        .selectors
-                        .drain(..)
-                        .zip(self.element_content_handlers.drain(..))
-                        .map(|(selector, h)| (Cow::Owned(selector), h))
-                        .collect(),
+                // Built-in Rust handler: auto-add loading="lazy" to <img> tags
+                let lazy_load_handler = lol_html::element!("img", |el| {
+                    if !el.has_attribute("loading") {
+                        el.set_attribute("loading", "lazy").unwrap();
+                    }
+                    Ok(())
+                });
 
+                let mut element_handlers: Vec<(
+                    Cow<'static, Selector>,
+                    NativeElementContentHandlers<'static>,
+                )> = self
+                    .selectors
+                    .drain(..)
+                    .zip(self.element_content_handlers.drain(..))
+                    .map(|(selector, h)| (Cow::Owned(selector), h))
+                    .collect();
+
+                // Prepend built-in handler so it runs before JS handlers
+                element_handlers.insert(0, lazy_load_handler);
+
+                let settings = Settings {
+                    element_content_handlers: element_handlers,
                     document_content_handlers: self.document_content_handlers.drain(..).collect(),
                     enable_esi_tags: self.enable_esi_tags,
                     ..Settings::default()

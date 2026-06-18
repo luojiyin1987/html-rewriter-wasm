@@ -2,7 +2,7 @@
 
 > 日期：2026-06-18
 > 分支：master
-> 范围：Layer 1 (JS/TS 表面) + Layer 2 (构建管线) + Layer 3 (wasm-bindgen 绑定) + Layer 4 (Asyncify 异步桥接)
+> 范围：Layer 1 (JS/TS 表面) + Layer 2 (构建管线) + Layer 3 (wasm-bindgen 绑定) + Layer 4 (Asyncify 异步桥接) + Layer 5 (Core Rust/lol-html)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 目标
 
-从外到内改造项目，每层改造完都能 `npm run build && npm test` 验证。本阶段完成前 4 层。
+从外到内改造项目，每层改造完都能 `npm run build && npm test` 验证。5 层全部完成。
 
 ### 最终状态
 
@@ -19,13 +19,13 @@
 ✅ 第 2 层：构建管线          — 会构建
 ✅ 第 3 层：wasm-bindgen 绑定 — 会扩展 API
 ✅ 第 4 层：Asyncify 异步桥接 — 会改异步逻辑
-⬜ 第 5 层：核心 Rust/lol-html — 会改核心逻辑
+✅ 第 5 层：核心 Rust/lol-html — 会加内置 handler
 ```
 
 ### 测试结果
 
 ```
-70 tests passed (全部通过)
+79 tests passed (70 original + 9 new)
 ```
 
 ---
@@ -44,6 +44,7 @@
 | `534101f` | feat: add debug(), getStats(), attributeCount to wasm-bindgen bindings |
 | `f1a44d3` | docs: add complete upgrade summary (Layer 1-3) |
 | `5eb4ae2` | feat: add asyncify debug mode and timeout detection |
+| (pending) | feat: add built-in Rust handler for auto loading="lazy" on img |
 
 ---
 
@@ -124,6 +125,16 @@
 | 2 | 超时检测 | `setTimeoutMs(5000)` 设置，promise resolve 后 clearTimeout 取消定时器 |
 | 3 | patch_glue.py 更新 | 新增导出需要同步更新 import 语句，否则构建失败 |
 
+### Layer 5：Core Rust / lol-html (5 个发现)
+
+| # | 发现 | 详情 |
+|---|---|---|
+| 1 | `element!` 宏可直接用于 Settings | 返回 `(Cow<Selector>, ElementContentHandlers)` 元组，正好是 Settings 字段类型 |
+| 2 | Handler 执行顺序 = 注册顺序 | `insert(0, ...)` 保证内置 handler 先执行，影响属性最终顺序 |
+| 3 | WASM 体积影响 | 注入一个 Rust handler 增加 ~8KB（840K → 848K） |
+| 4 | 选择器解析时机 | `element!` 宏在 `inner_mut()` 首次调用时解析选择器，非 JS `.on()` 时 |
+| 5 | 内置 handler 对 JS 透明 | 无需修改 `.d.ts` 类型定义，JS 侧完全无感知 |
+
 ---
 
 ## 五、构建管线完整流程
@@ -146,12 +157,12 @@ Rust 源码 (src/*.rs)
   │
   ▼ cp 到 dist/
   │  ├── html_rewriter.js (52KB)
-  │  ├── html_rewriter_bg.wasm (840KB)
+  │  ├── html_rewriter_bg.wasm (848KB)
   │  ├── asyncify.js (2.5KB)
   │  └── html_rewriter.d.ts (2.7KB)
   │
   ▼ npm test
-     └── 70 tests passed
+     └── 79 tests passed
 ```
 
 ---
@@ -221,9 +232,12 @@ class HTMLRewriter {
 | 文件 | 说明 |
 |---|---|
 | `src/patch_glue.py` | Python 胶水代码补丁脚本（替代 diff patch） |
+| `test/lazy-load.spec.ts` | 内置 handler 测试（9 个用例） |
 | `docs/layer1-upgrade-journal.md` | Layer 1 问题记录 |
 | `docs/layer2-upgrade-journal.md` | Layer 2 问题记录 |
 | `docs/layer3-upgrade-journal.md` | Layer 3 问题记录 |
+| `docs/layer4-upgrade-journal.md` | Layer 4 问题记录 |
+| `docs/layer5-upgrade-journal.md` | Layer 5 问题记录 |
 | `docs/upgrade-summary.md` | 本文档 |
 
 ### 修改文件
@@ -240,9 +254,10 @@ class HTMLRewriter {
 | `src/element.rs` | 加 attributeCount getter |
 | `src/html_rewriter.d.ts` | 同步更新所有新 API 类型定义 |
 | `ava.config.js` | require → nodeArguments: ["--import=tsx"] |
-| `LEARNING.md` | 标记 Layer 1-4 完成，更新环境信息 |
+| `LEARNING.md` | 标记 Layer 1-5 完成，更新环境信息 |
 | `src/asyncify.js` | 加 setDebugMode(), setTimeoutMs(), 状态日志, 超时检测 |
 | `src/patch_glue.py` | 更新 import 语句 |
+| `src/html_rewriter.rs` | 注入内置 Rust handler (loading="lazy") |
 
 ### 删除文件
 
@@ -266,9 +281,16 @@ class HTMLRewriter {
 10. **Asyncify 是 Binaryen 的 pass** — 不是 wasm-bindgen 的功能，是编译时优化
 11. **每个 rewriter 只能有一个 pending promise** — promises Map 用 stackPtr 做 key
 12. **debug 模式默认关闭** — 避免影响生产环境性能
+13. **内置 handler 可以和 JS handler 共存** — lol-html 支持在 Settings 中混合注册
+14. **Handler 执行顺序影响属性顺序** — 先注册的 handler 先执行，属性按注册顺序排列
+15. **Rust handler 增加 WASM 体积** — 每个 `element!` 宏引入选择器解析器，约 +8KB
 
 ---
 
 ## 十、下一步
 
-- **Layer 5**：核心 Rust / lol-html — 读 lol-html 源码，考虑升级到 3.0.0
+- ~~**Layer 5**：核心 Rust / lol-html — 读 lol-html 源码，考虑升级到 3.0.0~~ ✅ 已完成
+- **后续探索**：
+  - 升级 lol-html 到 3.0.0（builder pattern API、edition 2024）
+  - 添加更多内置 handler（`<iframe loading="lazy">`、`<video preload="none">`）
+  - 将内置 handler 做成可配置的 feature flag

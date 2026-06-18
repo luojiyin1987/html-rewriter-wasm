@@ -142,7 +142,80 @@ JS:   promise 完成
 Rust: 恢复调用栈，继续执行
 ```
 
-所以本质上：**JS 是用户接口，WASM 是执行引擎，glue code 是翻译官**。
+---
+
+## 补充：Asyncify 是通用技术
+
+### Asyncify 是什么
+
+Binaryen 的 Asyncify 是一个**编译时 pass**，可以将任何同步 WASM 模块转换为支持异步操作的模块。它不是本项目的专属技术，而是 WebAssembly 生态的通用工具。
+
+### 工作原理
+
+```
+原始同步 WASM：
+  fn process() {
+    do_something();
+    call_js_handler();  // ← 如果 JS 要 async 怎么办？
+    do_more();
+  }
+
+Asyncify 转换后：
+  fn process() {
+    do_something();
+    call_js_handler();
+    // ← 检查：JS 返回了 Promise？
+    // 是 → 保存整个调用栈到线性内存，暂停
+    //     JS await 完成后，恢复调用栈，继续执行 do_more()
+    // 否 → 直接继续
+  }
+```
+
+### 谁在用 Asyncify
+
+| 项目 | 用途 |
+|---|---|
+| **Cloudflare Workers** | 在边缘节点执行 WASM，需要 async I/O |
+| **Figma** | 高性能图形编辑器，WASM 处理图形，JS 处理 UI |
+| **Emscripten** | 将 C/C++ 代码编译为 WASM，支持 async 文件操作 |
+| **Rust wasm-bindgen** | 通过 Asyncify 支持 JS Promise |
+| **本项目 (html-rewriter-wasm)** | 让同步的 lol-html 支持 async JS handler |
+
+### Asyncify vs 其他异步方案
+
+| 方案 | 原理 | 优点 | 缺点 |
+|---|---|---|---|
+| **Asyncify** | 编译时转换，保存/恢复调用栈 | 通用，任何同步代码都能用 | 性能开销（栈保存/恢复） |
+| **SharedArrayBuffer** | WASM 和 JS 共享内存，JS 轮询 | 无栈开销 | 需要多线程支持，复杂 |
+| **JSPI (JS Promise Integration)** | WASM 原生支持 Promise | 标准化，性能好 | 还在提案阶段，未广泛支持 |
+| **手写状态机** | 手动将 async 逻辑拆成状态 | 性能最好 | 只适用于简单场景 |
+
+### 为什么本项目选择 Asyncify
+
+```
+lol-html 是同步设计的 Rust 库
+  ↓
+不想重写为异步（工作量大，破坏 API）
+  ↓
+用 Asyncify 在编译时自动转换
+  ↓
+JS 侧可以写 async handler
+  ↓
+Rust 代码完全不用改
+```
+
+### Asyncify 的代价
+
+| 代价 | 说明 |
+|---|---|
+| 性能 | 每次 async 都要保存/恢复整个调用栈，约 2-3x 开销 |
+| 内存 | 需要额外的栈空间存储（本项目 1024 字节） |
+| 编译时间 | Binaryen 的 Asyncify pass 增加编译时间 |
+| 体积 | WASM 体积增加约 10-20%（本项目 840KB → 优化后差不多） |
+
+### 一句话总结
+
+**Asyncify 是"让同步代码支持 async"的通用编译技术**，本项目只是它的一个应用场景。类似的场景还包括：将 C/C++ 库编译为 WASM 并支持异步 I/O、让游戏引擎在浏览器中支持 async 资源加载等。
 
 ---
 

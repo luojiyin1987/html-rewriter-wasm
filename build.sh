@@ -2,22 +2,24 @@
 set -e
 
 echo "---> Checking wasm-pack version..."
-# We need to make sure the version of wasm-pack uses Binaryen version_92,
-# which exports asyncify_get_state
+# We need wasm-pack that uses Binaryen version_92+ (exports asyncify_get_state)
+# Official wasm-pack >= 0.12.0 ships wasm-opt version_92+, no fork needed
 WASM_PACK_VERSION=$(wasm-pack --version)
-if [[ ! $WASM_PACK_VERSION =~ -asyncify$ ]]; then
-  echo "$WASM_PACK_VERSION installed, please install mrbbot's fork:"
-  echo "cargo install --git https://github.com/mrbbot/wasm-pack"
-  exit 1
-fi
+echo "Found: $WASM_PACK_VERSION"
 
 echo "---> Building WebAssembly with wasm-pack..."
-wasm-pack build --target nodejs
+# Disable reference types in WASM output: asyncify doesn't support them yet
+# See: https://github.com/WebAssembly/binaryen/issues/3739
+RUSTFLAGS="-C target-feature=-reference-types" wasm-pack build --target nodejs
 
 echo "---> Patching JavaScript glue code..."
-# Wraps write/end with asyncify magic and adds this returns for chaining
-# diff -uN pkg/html_rewriter.js pkg2/html_rewriter.js > html_rewriter.js.patch
-patch -uN pkg/html_rewriter.js < html_rewriter.js.patch
+# Apply transformations to wasm-bindgen output:
+# 1. Import setWasmExports and wrap from asyncify.js
+# 2. Make mutation methods return this (for chaining)
+# 3. Make write/end async using wrap()
+# 4. Fix attributes to return iterator
+# 5. Fix onEndTag to bind this
+python3 src/patch_glue.py pkg/html_rewriter.js
 
 echo "---> Copying required files to dist..."
 mkdir -p dist

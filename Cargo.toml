@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 js-sys = "=0.3.69"
 lol_html = { git = "https://github.com/cloudflare/lol-html", rev = "f32bd14" }
-serde = { version = "1.0.104", features = ["derive"] }
-serde-wasm-bindgen = "0.1.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "=0.2.92"
 thiserror = "1.0.2"
 

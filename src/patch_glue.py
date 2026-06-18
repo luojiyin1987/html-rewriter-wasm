@@ -14,10 +14,10 @@ import sys
 
 
 def patch(content: str) -> str:
-    # 1. Add setWasmExports and wrap to asyncify import
+    # 1. Add setWasmExports, wrap, setDebugMode, setTimeoutMs to asyncify import
     content = content.replace(
         'const { awaitPromise } = require(String.raw`./asyncify.js`);',
-        'const { awaitPromise, setWasmExports, wrap } = require(String.raw`./asyncify.js`);',
+        'const { awaitPromise, setWasmExports, wrap, setDebugMode, setTimeoutMs } = require(String.raw`./asyncify.js`);',
     )
 
     # 2. Make mutation methods return this.

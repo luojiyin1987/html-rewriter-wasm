@@ -167,7 +167,7 @@ node -e "const {HTMLRewriter} = require('./dist/html_rewriter.js'); ..."
 
 ---
 
-## 第 4 层：Asyncify 异步桥接
+## 第 4 层：Asyncify 异步桥接 ✅ 已完成
 
 **目标**：理解同步 WASM 如何支持 async JS handler
 
@@ -186,27 +186,24 @@ Rust 解析遇到元素
 
 状态流转：`NONE → UNWINDING → (JS await) → REWINDING → NONE`
 
-### 关键代码
-
-- `src/asyncify.js:66` — `awaitPromise()`：触发 unwind
-- `src/asyncify.js:89` — `wrap()`：管理 unwind/rewind 循环
-- `src/handlers.rs:32` — `make_handler!`：Rust 回调中调用 `await_promise`
-- `html_rewriter.js.patch` — `write`/`end` 改为 async 并调用 `wrap()`
-
-### 改造内容
+### 已完成的改造
 
 1. 在 `asyncify.js` 加状态日志
+   - `setDebugMode(true)` 开启调试模式
    - 在 `awaitPromise` 和 `wrap` 关键位置打印 state 变化
 
 2. 给 `wrap()` 加超时检测
-   - 如果 promise 超过 5s 未 resolve，打印警告
+   - `setTimeoutMs(5000)` 设置 5s 超时
+   - promise 超时未 resolve 时打印警告
+   - 超时只是警告，不会中断执行
 
-3. 在 `handlers.rs` 的 `make_handler!` 宏里加日志
-   - 观察 handler 调用链
+### 学到的要点
 
-### 验证
-
-写一个带 `async element` handler 的测试，观察日志输出。
+- Asyncify 是 Binaryen 的 pass，不是 wasm-bindgen 的功能
+- 每个 rewriter 只能有一个 pending promise
+- 栈指针必须 4 字节对齐
+- unwind/rewind 是对称操作
+- debug 模式默认关闭，零运行时开销
 
 ---
 
@@ -238,7 +235,7 @@ npm run build && npm test
 ## 执行顺序
 
 ```
-第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) ✅ → 第4层 (4-6h) → 第5层 (∞)
+第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) ✅ → 第4层 (4-6h) ✅ → 第5层 (∞)
   ↓                ↓                ↓                ↓
  会用             会构建           会扩展API        会改核心逻辑
 ```

@@ -51,6 +51,8 @@ export class Element {
   removeAndKeepContent(): this;
   /** 遍历所有属性，返回 [name, value] 迭代器 */
   readonly attributes: IterableIterator<[string, string]>;
+  /** 属性数量 */
+  readonly attributeCount: number;
   /** 命名空间 URI（如 http://www.w3.org/1999/xhtml） */
   readonly namespaceURI: string;
   /** 是否已被 remove() 删除 */
@@ -59,6 +61,8 @@ export class Element {
   tagName: string;
   /** 注册结束标签处理器。handler 中 this 指向当前 Element */
   onEndTag(handler: (this: this, endTag: EndTag) => void | Promise<void>): void;
+  /** 返回类型名称（调试用） */
+  debug(): string;
 }
 
 /**
@@ -75,6 +79,8 @@ export class EndTag {
   remove(): this;
   /** 标签名（可读写，如将 "p" 改为 "h1"） */
   name: string;
+  /** 返回类型名称（调试用） */
+  debug(): string;
 }
 
 /**
@@ -95,6 +101,8 @@ export class Comment {
   readonly removed: boolean;
   /** 注释文本内容（不含 <!-- -->） */
   text: string;
+  /** 返回类型名称（调试用） */
+  debug(): string;
 }
 
 /**
@@ -117,6 +125,8 @@ export class TextChunk {
   readonly removed: boolean;
   /** 文本内容 */
   readonly text: string;
+  /** 返回类型名称（调试用） */
+  debug(): string;
 }
 
 /**
@@ -181,6 +191,16 @@ export interface HTMLRewriterOptions {
 }
 
 /**
+ * HTMLRewriter 统计信息
+ */
+export interface HTMLRewriterStats {
+  /** 已注册的处理器数量 */
+  handlersRegistered: number;
+  /** 是否已调用 end() */
+  ended: boolean;
+}
+
+/**
  * HTML 重写器主类
  *
  * 流式处理 HTML 输入，通过注册的选择器处理器进行转换。
@@ -211,4 +231,6 @@ export class HTMLRewriter {
   end(): Promise<void>;
   /** 释放 WASM 内存。必须在使用完毕后调用 */
   free(): void;
+  /** 获取重写器统计信息 */
+  getStats(): HTMLRewriterStats;
 }

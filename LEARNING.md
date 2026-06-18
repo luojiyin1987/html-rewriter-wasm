@@ -123,7 +123,7 @@ npm run build && npm test
 
 ---
 
-## 第 3 层：wasm-bindgen 绑定
+## 第 3 层：wasm-bindgen 绑定 ✅ 已完成
 
 **目标**：理解 Rust 结构体如何暴露为 JS 类
 
@@ -135,16 +135,28 @@ npm run build && npm test
 - `#[wasm_bindgen(method, getter)]` → JS getter
 - `extern "C" { ... }` → 引用 JS 侧的类型
 
-### 改造内容
+### 已完成的改造
 
-1. 在 `element.rs` 加新方法
-   - 观察 `#[wasm_bindgen]` 如何生成 JS glue code
+1. 在 `lib.rs` 的 `impl_mutations!` 宏里加 `debug()` 方法
+   - `stringify!($Ty)` 编译期将标识符转为字符串
+   - Element → "Element", Comment → "Comment", TextChunk → "TextChunk"
 
-2. 在 `lib.rs` 的 `impl_mutations!` 宏里加 `debug()` 方法
-   - 理解宏如何批量为多个类型生成相同方法
+2. 在 `html_rewriter.rs` 加 `getStats()` getter
+   - `handlers_registered: u32` 统计注册的 handler 数量
+   - `ended: bool` 是否已调用 end()
+   - 使用 `js_sys::Object` + `Reflect::set` 返回 JS 对象
 
-3. 在 `html_rewriter.rs` 加 `getStats()` getter
-   - 在 Rust 端维护计数器，通过 `#[wasm_bindgen(getter)]` 暴露
+3. 在 `element.rs` 加 `attributeCount` getter
+   - `#[wasm_bindgen(method, getter=attributeCount)]` 做命名映射
+
+4. 同步更新 `html_rewriter.d.ts` 类型定义
+
+### 学到的要点
+
+- 宏是 Rust 的元编程工具，`impl_mutations!` 一次定义多处展开
+- `#[wasm_bindgen(js_name = ...)]` 做 Rust snake_case → JS camelCase 映射
+- 跨 FFI 返回对象需要 `js_sys::Object`，不能直接返回 Rust 结构体
+- TypeScript 类型定义需要手动同步更新
 
 ### 验证
 
@@ -226,7 +238,7 @@ npm run build && npm test
 ## 执行顺序
 
 ```
-第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) → 第4层 (4-6h) → 第5层 (∞)
+第1层 (1-2h) ✅ → 第2层 (2-3h) ✅ → 第3层 (3-4h) ✅ → 第4层 (4-6h) → 第5层 (∞)
   ↓                ↓                ↓                ↓
  会用             会构建           会扩展API        会改核心逻辑
 ```

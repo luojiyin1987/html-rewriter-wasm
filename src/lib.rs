@@ -161,6 +161,11 @@ macro_rules! impl_mutations {
             pub fn removed(&self) -> JsResult<bool> {
                 self.0.get().map(|o| o.removed())
             }
+
+            #[wasm_bindgen(js_name = debug)]
+            pub fn debug(&self) -> JsResult<String> {
+                self.0.get().map(|_| stringify!($Ty).to_string())
+            }
         }
     };
 }

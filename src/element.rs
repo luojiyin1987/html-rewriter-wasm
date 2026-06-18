@@ -42,6 +42,11 @@ impl Element {
             .and_then(|a| to_js_value(&a).into_js_result())
     }
 
+    #[wasm_bindgen(method, getter=attributeCount)]
+    pub fn attribute_count(&self) -> JsResult<usize> {
+        self.0.get().map(|e| e.attributes().len())
+    }
+
     #[wasm_bindgen(method, js_name=getAttribute)]
     pub fn get_attribute(&self, name: &str) -> JsResult<JsValue> {
         self.0.get().map(|e| {

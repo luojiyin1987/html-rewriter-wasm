@@ -2,7 +2,7 @@ use super::handlers::{
     DocumentContentHandlers, ElementContentHandlers, HandlerJsErrorWrap, IntoNativeHandlers,
 };
 use super::*;
-use js_sys::{Function as JsFunction, Uint8Array};
+use js_sys::{Function as JsFunction, Object, Uint8Array};
 use lol_html::errors::RewritingError;
 use lol_html::{
     DocumentContentHandlers as NativeDocumentContentHandlers,
@@ -49,6 +49,8 @@ pub struct HTMLRewriter {
     inner_constructed: bool,
     asyncify_stack: Vec<u8>,
     enable_esi_tags: bool,
+    handlers_registered: u32,
+    ended: bool,
 }
 
 #[wasm_bindgen]
@@ -117,6 +119,7 @@ impl HTMLRewriter {
         let stack_ptr = self.asyncify_stack_ptr();
         self.element_content_handlers
             .push(handlers.into_native(stack_ptr));
+        self.handlers_registered += 1;
 
         Ok(())
     }
@@ -127,6 +130,7 @@ impl HTMLRewriter {
         let stack_ptr = self.asyncify_stack_ptr();
         self.document_content_handlers
             .push(handlers.into_native(stack_ptr));
+        self.handlers_registered += 1;
 
         Ok(())
     }
@@ -139,6 +143,7 @@ impl HTMLRewriter {
 
     pub fn end(&mut self) -> JsResult<()> {
         self.inner_mut()?;
+        self.ended = true;
         // Rewriter must be constructed by self.inner_mut()
         self.inner
             .take()
@@ -150,5 +155,13 @@ impl HTMLRewriter {
     #[wasm_bindgen(method, getter=asyncifyStackPtr)]
     pub fn asyncify_stack_ptr(&mut self) -> *mut u8 {
         self.asyncify_stack.as_mut_ptr()
+    }
+
+    #[wasm_bindgen(js_name = getStats)]
+    pub fn get_stats(&self) -> JsResult<Object> {
+        let obj = Object::new();
+        js_sys::Reflect::set(&obj, &"handlersRegistered".into(), &JsValue::from(self.handlers_registered))?;
+        js_sys::Reflect::set(&obj, &"ended".into(), &JsValue::from(self.ended))?;
+        Ok(obj)
     }
 }

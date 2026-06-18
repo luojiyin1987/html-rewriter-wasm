@@ -2,7 +2,7 @@
 
 > 日期：2026-06-18
 > 分支：master
-> 范围：Layer 1 (JS/TS 表面) + Layer 2 (构建管线) + Layer 3 (wasm-bindgen 绑定)
+> 范围：Layer 1 (JS/TS 表面) + Layer 2 (构建管线) + Layer 3 (wasm-bindgen 绑定) + Layer 4 (Asyncify 异步桥接)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 目标
 
-从外到内改造项目，每层改造完都能 `npm run build && npm test` 验证。本阶段完成前 3 层。
+从外到内改造项目，每层改造完都能 `npm run build && npm test` 验证。本阶段完成前 4 层。
 
 ### 最终状态
 
@@ -18,7 +18,7 @@
 ✅ 第 1 层：JS/TS 表面        — 会用
 ✅ 第 2 层：构建管线          — 会构建
 ✅ 第 3 层：wasm-bindgen 绑定 — 会扩展 API
-⬜ 第 4 层：Asyncify 异步桥接 — 会改异步逻辑
+✅ 第 4 层：Asyncify 异步桥接 — 会改异步逻辑
 ⬜ 第 5 层：核心 Rust/lol-html — 会改核心逻辑
 ```
 
@@ -42,6 +42,8 @@
 | `96d484e` | docs: add Layer 2 upgrade journal |
 | `c4a11cd` | docs: mark Layer 2 as completed in LEARNING.md |
 | `534101f` | feat: add debug(), getStats(), attributeCount to wasm-bindgen bindings |
+| `f1a44d3` | docs: add complete upgrade summary (Layer 1-3) |
+| `5eb4ae2` | feat: add asyncify debug mode and timeout detection |
 
 ---
 
@@ -113,6 +115,14 @@
 | 2 | 跨 FFI 返回对象 | 需要 `js_sys::Object` + `Reflect::set`，不能直接返回 Rust 结构体 |
 | 3 | 命名映射 | `getter=attributeCount` 将 Rust snake_case 映射为 JS camelCase |
 | 4 | TypeScript 类型同步 | wasm-pack 不自动更新 `.d.ts`，需要手动维护 |
+
+### Layer 4：Asyncify 异步桥接 (3 个改造点)
+
+| # | 改造 | 发现 |
+|---|---|---|
+| 1 | 状态日志 | `setDebugMode(true)` 开启，日志包含 stackPtr 区分 rewriter 实例 |
+| 2 | 超时检测 | `setTimeoutMs(5000)` 设置，promise resolve 后 clearTimeout 取消定时器 |
+| 3 | patch_glue.py 更新 | 新增导出需要同步更新 import 语句，否则构建失败 |
 
 ---
 
@@ -230,7 +240,9 @@ class HTMLRewriter {
 | `src/element.rs` | 加 attributeCount getter |
 | `src/html_rewriter.d.ts` | 同步更新所有新 API 类型定义 |
 | `ava.config.js` | require → nodeArguments: ["--import=tsx"] |
-| `LEARNING.md` | 标记 Layer 1-3 完成，更新环境信息 |
+| `LEARNING.md` | 标记 Layer 1-4 完成，更新环境信息 |
+| `src/asyncify.js` | 加 setDebugMode(), setTimeoutMs(), 状态日志, 超时检测 |
+| `src/patch_glue.py` | 更新 import 语句 |
 
 ### 删除文件
 
@@ -251,10 +263,12 @@ class HTMLRewriter {
 7. **宏是 Rust 的元编程工具** — `impl_mutations!` 一次定义多处展开
 8. **跨 FFI 返回对象需要 js_sys** — 不能直接返回 Rust 结构体
 9. **TypeScript 类型需要手动同步** — wasm-pack 不会自动更新 `.d.ts`
+10. **Asyncify 是 Binaryen 的 pass** — 不是 wasm-bindgen 的功能，是编译时优化
+11. **每个 rewriter 只能有一个 pending promise** — promises Map 用 stackPtr 做 key
+12. **debug 模式默认关闭** — 避免影响生产环境性能
 
 ---
 
 ## 十、下一步
 
-- **Layer 4**：Asyncify 异步桥接 — 在 asyncify.js 加状态日志和超时检测
 - **Layer 5**：核心 Rust / lol-html — 读 lol-html 源码，考虑升级到 3.0.0
